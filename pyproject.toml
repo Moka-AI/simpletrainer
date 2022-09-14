@@ -2,8 +2,14 @@
 name = "simpletrainer"
 version = "0.1.0"
 description = "Simple PyTorch Trainer"
+license = "Apache-2.0"
 authors = ["wangyuxin <wangyuxin@mokahr.com>"]
 readme = "README.md"
+keywords = ["deeplearning", "pytorch", "torch", "trainer", "nlp"]
+classifiers = [
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: Apache Software License",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
