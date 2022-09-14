@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "simpletrainer"
+version = "0.1.0"
+description = "Simple PyTorch Trainer"
+authors = ["wangyuxin <wangyuxin@mokahr.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+coolname = "^1.1.0"
+pydantic = "^1.10.2"
+torchinfo = "^1.7.0"
+accelerate = "^0.12.0"
+tensorboard = "^2.10.0"
+rich = "^12.5.1"
+tqdm = "^4.64.1"
+requests = "^2.28.1"
+
+[tool.poetry.group.component]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "7.1.2"
+pyright = "^1.1.266"
+isort = "5.10.1"
+blue = "0.9.1"
+coverage = "6.3.2"
+pytest-cov = '3.0.0'
+
+[tool.poetry.group.component.dependencies]
+mlflow = "^1.28.0"
+wandb = "^0.13.2"
+torchmetrics = "^0.9.3"
+
+[tool.isort]
+profile = "black"
+
+[tool.pyright]
+include = [
+    "simpletrainer/**",
+    "tests/**",
+]
+exclude = [
+    "simpletrainer/loggers/wandb.py",
+    "simpletrainer/loggers/mlflow.py",
+]
+reportMissingImports="none"
+reportMissingTypeStubs = "none"
+reportPrivateImportUsage = "none"
+reportUnusedImport = "error"
+reportUnusedClass = "error"
+reportUnusedFunction = "error"
+reportUnusedVariable = "error"
+reportDuplicateImport = "error"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

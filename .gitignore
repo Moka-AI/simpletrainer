@@ -1,0 +1,9 @@
+__pycache__
+.ipynb_checkpoints
+.idea/
+.DS_Store
+*.egg-info
+.vscode/
+.coverage
+dist/
+playground.ipynb
