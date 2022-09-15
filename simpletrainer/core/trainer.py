@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union
 
 import torch
 from accelerate import Accelerator
@@ -14,14 +14,17 @@ from simpletrainer.common.types import (
     Batch,
     BatchOutput,
     HyperParams,
+    LRScheduler,
     MetricDict,
-    Prime,
+    PathOrStr,
     SignMetric,
+    Stateful,
 )
 from simpletrainer.core.configs import TrainerConfig
 from simpletrainer.core.hook import TrainerEvent, TrainerHookEngine, entrypoint
+from simpletrainer.core.info import TrainerInfo
 from simpletrainer.core.mixins import AcceleratorMixin, TrainerStateMixin
-from simpletrainer.core.states import TrainerLoopState, TrainerStageState
+from simpletrainer.core.state import TrainerState
 from simpletrainer.loggers import BaseDeepLearningLogger, TensorboardLogger
 from simpletrainer.utils.common import random_experiment_name, smartget
 from simpletrainer.utils.torch import get_data_info
@@ -35,6 +38,12 @@ if TYPE_CHECKING:
 class Trainer(TrainerStateMixin, AcceleratorMixin):
     EVENT = TrainerEvent
 
+    model: torch.nn.Module
+    optimizer: torch.optim.Optimizer
+    train_dataloader: DataLoader
+    valid_dataloader: Optional[DataLoader]
+    lr_scheduler: Optional[LRScheduler]
+
     def __init__(
         self,
         epochs: int = DefaultSettings.epochs,
@@ -44,6 +53,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         experiment_name: str = DefaultSettings.experiment_name,
         run_name: Optional[str] = None,
         output_dir: Optional[Path] = None,
+        auto_restore: bool = True,
         accelerator: Optional[Accelerator] = None,
         logger: Optional[BaseDeepLearningLogger] = None,
         components: Sequence['Component'] = tuple(),
@@ -55,13 +65,14 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.experiment_name = experiment_name
         self.run_name = run_name or random_experiment_name()
         self.output_dir = output_dir or (Path(self.experiment_name) / self.run_name)
+        self.auto_restore = auto_restore
         self.accelerator = accelerator or Accelerator()
         self.logger = logger or TensorboardLogger()
         self.components = []
         self.exports: dict[str, Any] = {}
-
+        self.state = TrainerState()
         self.hook_engine = TrainerHookEngine(self)
-        components = list(components) + self._get_default_components()
+
         for component in components:
             self.hook_engine.add(component)
         self.hook_engine.on(TrainerEvent.INIT)
@@ -96,6 +107,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             experiment_name=config.experiment_name,
             run_name=config.run_name,
             output_dir=config.output_dir,
+            auto_restore=config.auto_restore,
             components=components,
         )
 
@@ -105,42 +117,61 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         optimizer: torch.optim.Optimizer,
         train_dataloader: DataLoader,
         valid_dataloader: Optional[DataLoader] = None,
+        lr_scheduler: Optional[LRScheduler] = None,
+        checkpoint: Optional[PathOrStr] = None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
+        self.lr_scheduler = lr_scheduler
 
         try:
             self.prepare()
+            self.try_restore_checkpoint(checkpoint)
             self.loop()
             self.hook_engine.on(TrainerEvent.FINISH)
         except (Exception, KeyboardInterrupt) as e:
             self.exception = e
-            self.hook_engine.on(TrainerEvent.CRASH)
+            self.crash()
             raise
         finally:
             self.teardown()
 
     def prepare(self) -> None:
+        self._accelerate_prepare()
+
         if self.valid_dataloader is None:
             self.do_eval = False
-
         self.train_data_info = get_data_info(self.train_dataloader, self.accelerator.num_processes)
         if self.valid_dataloader is None:
             self.valid_data_info = None
         else:
             self.valid_data_info = get_data_info(self.valid_dataloader, self.accelerator.num_processes)
 
-        self._accelerate_prepare()
         self.output_dir.mkdir(exist_ok=True, parents=True)
         self.logger.with_trainer(self)
-        self._loop_state = TrainerLoopState()
+        self.info.to_json(self.output_dir / DefaultSettings.trainer_info_json_file_name)
         self.hook_engine.on(TrainerEvent.PREPARE)
+
+    def try_restore_checkpoint(self, checkpoint: Optional[PathOrStr] = None) -> None:
+        if checkpoint is not None:
+            self.load(checkpoint)
+        elif self.auto_restore:
+            if not self.checkpoint_dir.exists():
+                return
+            latest_checkpoint = max((d for d in self.checkpoint_dir.iterdir() if d.is_dir()), key=lambda x: x.stat().st_mtime)
+            self.load(latest_checkpoint)
 
     def teardown(self) -> None:
         self.logger.teardown()
+        self.info.to_json(self.output_dir / DefaultSettings.trainer_info_json_file_name)
         self.hook_engine.on(TrainerEvent.TEARDOWN)
+
+    def crash(self) -> None:
+        if isinstance(self.exception, KeyboardInterrupt):
+            self.save('on-keyboard-interrupt')
+        self.hook_engine.on(TrainerEvent.CRASH)
 
     @entrypoint
     def loop(self) -> None:
@@ -154,12 +185,30 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
     @entrypoint
     def run_epoch(self) -> None:
-        logger.info(f'[epoch {self.current_epoch}] train stage start')
-        self.prepare_for_stage(train=True)
-        self.run_stage(train=True)
+        if self.state.should_restore:
+            self.run_restore_epoch()
+        else:
+            self.prepare_for_stage(train=True)
+            self.run_stage(train=True)
+            if self.do_eval:
+                self.prepare_for_stage(train=False)
+                self.run_stage(train=False)
+
+    @entrypoint
+    def run_restore_epoch(self) -> None:
+        tn = self.run_train_stage.__name__
+        vn = self.run_valid_stage.__name__
+
+        if tn not in self.state.checkpoint_entrypoint_stack and vn not in self.state.checkpoint_entrypoint_stack:
+            self.state.checkpoint_entrypoint_stack = []
+            return
+
+        if tn in self.state.checkpoint_entrypoint_stack:
+            self.prepare_for_stage(train=True)
+            self.run_stage(train=True)
 
         if self.do_eval:
-            logger.info(f'[epoch {self.current_epoch}] valid stage start')
+            logger.debug(f'[epoch {self.current_epoch}] valid stage start')
             self.prepare_for_stage(train=False)
             self.run_stage(train=False)
 
@@ -173,14 +222,11 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
     @entrypoint
     def prepare_for_stage(self, train: bool) -> None:
         self.model.train(train)
-        self.valid_dataloader = cast(DataLoader, self.valid_dataloader)
-        data_iterator = iter(self.train_dataloader) if train else iter(self.valid_dataloader)
-        self._stage_state = TrainerStageState(
-            data_iterator,
-            train=train,
-            current_epoch=self.current_epoch,
-            loss_metric_scale=self.accumulate_grad_batches,
-        )
+        batch_iterator = iter(self.train_dataloader) if train else iter(self.valid_dataloader)   # type: ignore
+        if self.state.should_restore:
+            self.state.restore(train, batch_iterator)
+        else:
+            self.state.prepare(train, batch_iterator)
 
     @entrypoint
     def run_train_stage(self) -> None:
@@ -193,21 +239,21 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
         stage_metrics = self.collect_stage_metrics()
         stage_metrics = {k: round(v, DefaultSettings.metric_round) for k, v in stage_metrics.items()}
-        logger.info(f'[epoch {self.current_epoch}] train stage metrics: {stage_metrics}')
+        logger.debug(f'[epoch {self.current_epoch}] train stage metrics: {stage_metrics}')
         self.train_metrics_history.append(stage_metrics)
 
     @entrypoint
     def generate_batch(self) -> Optional[Batch]:
-        if self.stage_state.batch_iterator is None:
+        if self.state.batch_iterator is None:
             raise ValueError('Batch iterator is not initialized')
         try:
-            return next(self.stage_state.batch_iterator)
+            return next(self.state.batch_iterator)
         except StopIteration:
             return
 
     @entrypoint
     def set_batch(self, batch: Batch) -> None:
-        self.stage_state.batch = batch
+        self.state.batch = batch
 
     @entrypoint
     def run_valid_stage(self) -> None:
@@ -217,16 +263,16 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
         stage_metrics = self.collect_stage_metrics()
         stage_metrics = {k: round(v, DefaultSettings.metric_round) for k, v in stage_metrics.items()}
-        logger.info(f'[epoch {self.current_epoch}] valid stage metrics: {stage_metrics}')
+        logger.debug(f'[epoch {self.current_epoch}] valid stage metrics: {stage_metrics}')
         self.valid_metrics_history.append(stage_metrics)
 
     @entrypoint
     def collect_stage_metrics(self) -> MetricDict:
-        return self.stage_state.metrics
+        return self.state.stage_metrics
 
     @entrypoint
     def should_step(self) -> bool:
-        return (self.stage_state.num_batches % self.accumulate_grad_batches) == 0
+        return (self.state.num_batches % self.accumulate_grad_batches) == 0
 
     @entrypoint
     def run_batch(self) -> None:
@@ -248,22 +294,22 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
     @entrypoint
     def forward(self) -> None:
-        batch_output: BatchOutput = self.model(**self.stage_state.batch)
+        batch_output: BatchOutput = self.model(**self.state.batch)
         self.set_batch_output(batch_output)
         self.set_loss()
 
     @entrypoint
     def backward(self) -> None:
-        self.accelerator.backward(self.stage_state.loss)
+        self.accelerator.backward(self.state.loss)
 
     @entrypoint
     def set_batch_output(self, batch_output: BatchOutput) -> None:
-        self.stage_state.batch_output = batch_output
+        self.state.batch_output = batch_output
 
     @entrypoint
     def set_loss(self) -> None:
-        loss = smartget(self.stage_state.batch_output, 'loss') / self.accumulate_grad_batches
-        self.stage_state.loss = loss
+        loss = smartget(self.state.batch_output, 'loss')
+        self.state.set_loss(loss, self.accumulate_grad_batches)
 
     @entrypoint
     def step(self) -> None:
@@ -296,12 +342,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
     @property
     def raw_model(self) -> torch.nn.Module:
-        if isinstance(self.model, torch.nn.parallel.distributed.DistributedDataParallel):
-            return self.model.module
-        elif isinstance(self.model, torch.nn.parallel.DataParallel):
-            return self.model.module
-        else:
-            return self.model
+        return self.accelerator.unwrap_model(self.model)
 
     @property
     def raw_optimizer(self) -> torch.optim.Optimizer:
@@ -311,22 +352,18 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             return self.optimizer
 
     @property
-    def attributes(self) -> dict[str, Prime]:
-        return {
-            'epochs': self.epochs,
-            'do_eval': self.do_eval,
-            'accumulate_grad_batches': self.accumulate_grad_batches,
-            'core_metric': str(self.core_metric),
-            'experiment_name': self.experiment_name,
-            'run_name': self.run_name,
-            'output_dir': str(self.output_dir),
-        }
+    def checkpoint_dir(self) -> Path:
+        return self.output_dir / DefaultSettings.checkpoints_root_dir_name
+
+    @property
+    def info(self) -> TrainerInfo:
+        return TrainerInfo.from_trainer(self)
 
     def log(
         self, data: Mapping[str, Union[float, torch.Tensor]], step: Optional[int] = None, prefix: Optional[str] = None
     ) -> None:
         if prefix is None:
-            prefix = 'train' if self.stage_state.train else 'validation'
+            prefix = 'train' if self.in_train_stage else 'validation'
 
         if step is None:
             step = self.cum_steps
@@ -341,17 +378,31 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             tensors = self.logger.add_prefix(prefix, tensors)
             self.logger.log_tensors(tensors, step=step)
 
-    def _get_default_components(self):
-        from simpletrainer.components import FileHandler, SaveTrainerInfo, Timer
+    def save(self, checkpoint_name: str):
+        save_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name
+        if self.is_main_process:
+            save_dir.mkdir(parents=True, exist_ok=True)
+            self.state.to_json(save_dir / DefaultSettings.trainer_state_json_file_name)
+        self.accelerator.wait_for_everyone()
+        self.accelerator.save_state(str(save_dir))
 
-        return [Timer(), SaveTrainerInfo(), FileHandler()]
+    def load(self, checkpoint_dir: PathOrStr):
+        checkpoint_dir = Path(checkpoint_dir)
+        self.accelerator.load_state(str(checkpoint_dir))
+        self.state = self.state.from_json(checkpoint_dir / DefaultSettings.trainer_state_json_file_name)
+        self.state.checkpoint_entrypoint_stack = self.state.entrypoint_stack
+        self.state.entrypoint_stack = []
+        self.accelerator.wait_for_everyone()
 
     def _accelerate_prepare(self) -> None:
-        self.model: torch.nn.Module = self.accelerator.prepare(self.model)  # type: ignore
-        self.optimizer: torch.optim.Optimizer = self.accelerator.prepare(self.optimizer)  # type: ignore
-        self.train_dataloader: DataLoader = self.accelerator.prepare(self.train_dataloader)  # type: ignore
+        self.model, self.optimizer, self.train_dataloader, self.lr_scheduler = self.accelerator.prepare(  # type: ignore
+            self.model, self.optimizer, self.train_dataloader, self.lr_scheduler
+        )  # type: ignore
         if self.valid_dataloader is not None:
-            self.valid_dataloader: Optional[DataLoader] = self.accelerator.prepare(self.valid_dataloader)  # type: ignore
+            self.valid_dataloader = self.accelerator.prepare(self.valid_dataloader)  # type: ignore
+        for component in self.components:
+            if isinstance(component, Stateful):
+                self.accelerator.register_for_checkpointing(component)
 
     def __getitem__(self, key: str):
         return self.exports[key]

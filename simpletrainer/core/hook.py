@@ -49,11 +49,11 @@ class TrainerEvent(str, Enum):
 def entrypoint(method):
     @wraps(method)
     def wrapped_method(self: 'Trainer', *args, **kwargs):
-        self.hook_engine.entrypoint_stack.append(method.__name__)
+        self.state.entrypoint_stack.append(method.__name__)
         self.hook_engine.before(method)
         raw_return = method(self, *args, **kwargs)
         final_return = self.hook_engine.after(method, raw_return)
-        self.hook_engine.entrypoint_stack.pop(-1)
+        self.state.entrypoint_stack.pop(-1)
         return final_return
 
     return wrapped_method

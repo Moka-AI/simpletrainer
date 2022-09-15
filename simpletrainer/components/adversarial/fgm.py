@@ -18,7 +18,7 @@ class FGM(AttrsComponent):
         if trainer.in_train_stage:
             return
 
-        loss = trainer.stage_state.loss
+        loss = trainer.state.loss
         params = get_params_with_pattern(trainer.model, self.pattern)
 
         grad_params = torch.autograd.grad(outputs=loss, inputs=params, create_graph=True)
@@ -27,9 +27,9 @@ class FGM(AttrsComponent):
         for param, noise in zip(params, params_noise):
             param.data.add_(noise)
 
-        fgm_loss = self.adv_weight * trainer.model(**trainer.stage_state.batch)['loss']
+        fgm_loss = self.adv_weight * trainer.model(**trainer.state.batch)['loss']
         fgm_loss.backward()
-        trainer.stage_state.metrics['fgm_loss'] = fgm_loss.item()
+        trainer.update_stage_metrics(fgm_loss=fgm_loss.item())
 
         for param, noise in zip(params, params_noise):
             param.data.sub_(noise)

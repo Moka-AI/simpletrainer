@@ -7,6 +7,8 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 from simpletrainer import DefaultSettings, Trainer, TrainerConfig
+from simpletrainer.components import MetricTracker, SaveCheckpoint
+from simpletrainer.utils.torch import set_seed
 
 logging.basicConfig(level=logging.INFO, format=DefaultSettings.log_format)
 
@@ -38,6 +40,9 @@ def main(cfg: MiniExperimentConfig):
 
     # SimpleTrainer
     trainer = Trainer.from_config(cfg.trainer)
+    trainer.hook_engine.add(SaveCheckpoint())
+    trainer.hook_engine.add(MetricTracker())
+
     trainer.train(
         model,
         optimizer,
@@ -47,8 +52,10 @@ def main(cfg: MiniExperimentConfig):
 
 
 if __name__ == '__main__':
+    set_seed(24)
     trainer_config = TrainerConfig()
     trainer_config.experiment_name = 'simpletrainer-mini'
+    trainer_config.run_name = 'test-restore'
     trainer_config.inspect = False
     trainer_config.progress_bar = 'rich'
 

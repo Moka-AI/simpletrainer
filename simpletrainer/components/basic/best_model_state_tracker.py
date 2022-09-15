@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Mapping, Optional, Union
+from typing import Mapping
 
 import torch
 
@@ -14,14 +14,8 @@ class BestModelStateTracker(AttrsComponent):
     best_model_state: Mapping[str, torch.Tensor] = field(init=False, export=True)
     metric_tracker: MetricTracker = field(init=False)
 
-    def __init__(self, sign_metric: Optional[Union[str, SignMetric]] = None):
-        self._init_sign_metric = sign_metric
-
     def with_trainer(self, trainer: Trainer) -> None:
-        sign_metric = self._init_sign_metric or trainer.core_metric
-        if isinstance(sign_metric, str):
-            sign_metric = SignMetric.from_str(sign_metric)
-        self.sign_metric = sign_metric
+        self.sign_metric = self.sign_metric or trainer.core_metric
         self.metric_tracker = trainer.hook_engine.setdefault(MetricTracker(sign_metric=self.sign_metric))
 
     @after(Trainer.run_epoch)

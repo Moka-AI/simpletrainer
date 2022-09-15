@@ -68,13 +68,13 @@ class TorchMetricsWrapper(BaseComponent):
             self._update(trainer, self.train_metric)
 
     def _update(self, trainer: Trainer, metric: 'TorchMetric'):
-        batch = trainer.stage_state.batch
-        batch_output = trainer.stage_state.batch_output
+        batch = trainer.state.batch
+        batch_output = trainer.state.batch_output
         pred = self.pred_getter(batch_output)
         target = self.target_getter(batch)
         metric.update(pred, target)
-        if (trainer.stage_state.num_steps % self.compute_intervel) == 0:   # type: ignore
-            trainer.update_metrics(self.compute(metric))
+        if (trainer.state.num_steps % self.compute_intervel) == 0:   # type: ignore
+            trainer.update_stage_metrics(**self.compute(metric))
 
     @after(Trainer.run_stage)
     def reset_metrics(self, trainer: Trainer):

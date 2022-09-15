@@ -18,4 +18,5 @@ class FileHandler(AttrsComponent):
 
     @on(Trainer.EVENT.TEARDOWN)
     def remove_handler(self, trainer: Trainer):
-        logging.root.removeHandler(self.file_handler)
+        if hasattr(self, 'file_handler'):
+            logging.root.removeHandler(self.file_handler)

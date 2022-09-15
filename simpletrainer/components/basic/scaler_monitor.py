@@ -15,5 +15,5 @@ class ScalerMonitor(AttrsComponent):
     def collect(self, trainer: Trainer):
         self.intervel = cast(int, self.intervel)
 
-        if trainer.stage_state.num_batches % self.intervel == 0:
-            trainer.update_metrics({self.name: self.getter(trainer)})
+        if trainer.state.num_batches % self.intervel == 0:
+            trainer.update_stage_metrics(**{self.name: self.getter(trainer)})

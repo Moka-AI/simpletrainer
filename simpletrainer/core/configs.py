@@ -41,6 +41,7 @@ class TrainerConfig(BaseModel):
     experiment_name: str = DefaultSettings.experiment_name
     run_name: str = Field(default_factory=lambda: random_experiment_name())
     output_dir: Optional[Path] = None
+    auto_restore: bool = True
     inspect: bool = False
     progress_bar: Literal['rich', 'tqdm'] = 'rich'
     accelerator: AcceleratorConfig = Field(default_factory=AcceleratorConfig)
