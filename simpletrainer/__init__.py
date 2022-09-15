@@ -4,6 +4,7 @@ from simpletrainer.common.default_settings import DefaultSettings
 from simpletrainer.core import (
     AttrsComponent,
     BaseComponent,
+    StatefulAttrsComponent,
     Trainer,
     TrainerConfig,
     after,
@@ -18,6 +19,7 @@ __all__ = [
     'DefaultSettings',
     'BaseComponent',
     'AttrsComponent',
+    'StatefulAttrsComponent',
     'define',
     'field',
     'after',

@@ -69,6 +69,7 @@ def field(
     default=NOTHING,
     export: bool = False,
     hyper_param: bool = False,
+    save: bool = False,
     validator=None,
     repr=True,
     hash=None,
@@ -82,7 +83,7 @@ def field(
     on_setattr=None,
 ) -> Any:
     new_metadata = metadata or {}
-    new_metadata.update(simpletrainer_export=export, simpletrainer_hyper_param=hyper_param)
+    new_metadata.update(simpletrainer_export=export, simpletrainer_hyper_param=hyper_param, simpletrainer_save=save)
     return attrs_field(
         default=default,
         validator=validator,

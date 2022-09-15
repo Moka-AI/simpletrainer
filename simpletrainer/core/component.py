@@ -43,5 +43,16 @@ class AttrsComponent(BaseComponent):
         return {f.name: getattr(self, f.name) for f in export_fields}
 
 
+class StatefulAttrsComponent(AttrsComponent):
+    def state_dict(self):
+        component_fileds = fields(self.__class__)   # type: ignore
+        save_fields = [f for f in component_fileds if f.metadata.get('simpletrainer_save', False)]
+        return {f.name: getattr(self, f.name) for f in save_fields}
+
+    def load_state_dict(self, state_dict: dict[str, Any]):
+        for name, value in state_dict.items():
+            setattr(self, name, value)
+
+
 class ComponentCheckError(Exception):
     pass

@@ -16,7 +16,7 @@ from simpletrainer.utils.torch import (
 
 @define(only_main_process=True)
 class ModelWatcher(AttrsComponent):
-    interval: int = 0
+    interval: int = field(default=0, save=True)
     watch_metrics: bool = True
     watch_parameter: bool = False
     watch_gradient: bool = False
@@ -42,12 +42,11 @@ class ModelWatcher(AttrsComponent):
     def _log_step(self, trainer: Trainer):
         self.interval = cast(int, self.interval)
 
-        step = trainer._loop_state.cum_steps
-        if step % self.interval != 0:
+        if trainer.cum_steps % self.interval != 0:
             return
 
         if self.watch_metrics:
-            trainer.log(trainer.stage_state.metrics)
+            trainer.log(trainer.state.stage_metrics)
 
         if self.watch_learning_rate:
             lr_summary = get_module_learning_rate_summary(trainer.model, trainer.optimizer)

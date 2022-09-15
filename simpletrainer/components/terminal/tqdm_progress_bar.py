@@ -22,18 +22,19 @@ class TqdmProgressBar(BaseComponent):
             total=total,
             desc=self.get_trainer_description(trainer),
             unit='bat',
+            initial=trainer.state.num_batches,
         )
 
-    @after(Trainer.run_stage)
+    @after(Trainer.run_stage, try_first=True)
     def close(self, trainer: Trainer):
         self.progress_bar.close()
 
     @after(Trainer.run_batch)
     def advance_batch(self, trainer: Trainer):
         self.progress_bar.update(1)
-        if trainer.stage_state.num_batches % self.update_intervel == 1:
+        if trainer.state.num_batches % self.update_intervel == 1:
             description = (
-                self.get_trainer_description(trainer) + ' | ' + self.get_metrics_description(trainer.stage_state.metrics)
+                self.get_trainer_description(trainer) + ' | ' + self.get_metrics_description(trainer.state.stage_metrics)
             )
             self.progress_bar.set_description(description)
 

@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn as nn
+from attrs import asdict
 from rich.align import Align
 from rich.columns import Columns
 from rich.console import Console, Group
@@ -102,11 +103,6 @@ class RichProgressBar(BaseComponent):
         self._live = Live(console=console)
         self._rich_handler_added = False
 
-    # def with_trainer(self, trainer: Trainer) -> None:
-    #     self.train_task_id = self.add_task('train', trainer.train_data_info.num_batches_per_epoch)
-    #     if trainer.do_eval:
-    #         self.valid_task_id = self.add_task('valid', trainer.valid_data_info.num_batches_per_epoch)  # type: ignore
-
     def _prepare_rich_handler(self):
         self.rich_handler = RichHandler(console=console)
         logging.root.addHandler(self.rich_handler)
@@ -144,10 +140,15 @@ class RichProgressBar(BaseComponent):
         self._live.start()
         self._live.update(self.rich_live_obj)
 
+    @after(Trainer.prepare_for_stage)
+    def set_initial(self, trainer: Trainer):
+        if trainer.state.num_batches:
+            self.progress.reset(self.train_task_id, completed=trainer.state.num_batches)
+
     @after(Trainer.run_batch)
     def advance_batch(self, trainer: Trainer):
         task_id = self.train_task_id if trainer.in_train_stage else self.valid_task_id
-        self.progress.update(task_id, steps=trainer.stage_state.num_batches, advance=1)
+        self.progress.update(task_id, steps=trainer.state.num_batches, advance=1)
 
     @before(Trainer.run_stage)
     def start_train_stage(self, trainer: Trainer):
@@ -159,7 +160,7 @@ class RichProgressBar(BaseComponent):
                 self.progress.update(self.train_task_id, steps=train_steps)
             self.progress.start_task(self.valid_task_id)
 
-        self.rich_live_obj.live_objs['stage_metrics'] = trainer.stage_state.metrics
+        self.rich_live_obj.live_objs['stage_metrics'] = trainer.state.stage_metrics
 
     @before(Trainer.run_epoch)
     def set_progress(self, trainer: Trainer):
@@ -335,13 +336,14 @@ class RichInspect(BaseComponent):
 
     @staticmethod
     def get_trainer_panel(trainer: Trainer):
+        info = trainer.info
         return [
             Align.center(
                 Columns(
                     [
-                        convert_dict_to_table(trainer.accelerator.state.__dict__, title='Accelerator'),
-                        convert_dict_to_table(trainer.hyper_params, title='HyperParams'),
-                        convert_dict_to_table(trainer.attributes, title='Attributes'),
+                        convert_dict_to_table(asdict(info.accelerator), title='Accelerator'),
+                        convert_dict_to_table(info.hyper_params, title='HyperParams'),
+                        convert_dict_to_table(asdict(info.init_attributes), title='InitAttributes'),
                     ],
                     padding=(0, 5),
                     equal=True,

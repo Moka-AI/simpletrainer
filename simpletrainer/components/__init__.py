@@ -5,7 +5,7 @@ from simpletrainer.components.basic import (
     MetricTracker,
     ModelWatcher,
     SaveBestModel,
-    SaveTrainerInfo,
+    SaveCheckpoint,
     ScalerMonitor,
     Timer,
 )
@@ -27,7 +27,7 @@ __all__ = [
     'MetricTracker',
     'BestModelStateTracker',
     'Timer',
-    'SaveTrainerInfo',
+    'SaveCheckpoint',
     'SaveBestModel',
     'FileHandler',
     'ScalerMonitor',

@@ -19,7 +19,7 @@ class GradPenalty(AttrsComponent):
         if trainer.in_valid_stage:
             return
 
-        loss = trainer.stage_state.loss
+        loss = trainer.state.loss
         params = get_params_with_pattern(trainer.model, self.pattern)
 
         grad_scaler: Optional[GradScaler] = trainer.grad_scaler
@@ -32,8 +32,8 @@ class GradPenalty(AttrsComponent):
         else:
             grad_params = torch.autograd.grad(outputs=loss, inputs=params, create_graph=True)
             penalty = self.calculate_penalty(grad_params)
-        trainer.update_metrics({'grad_penalty': (penalty * self.penalty_weight).item()})
-        trainer.stage_state.loss = loss + penalty * self.penalty_weight
+        trainer.update_stage_metrics(grad_penalty=(penalty * self.penalty_weight).item())
+        trainer.state.loss = loss + penalty * self.penalty_weight
 
     @staticmethod
     def calculate_penalty(grad_params: Sequence[torch.Tensor]):
