@@ -8,7 +8,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import MethodType
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Mapping, Optional, Union
 
 from coolname import generate_slug
 
@@ -57,7 +57,7 @@ def get_init_params(obj: Any) -> dict[str, Any]:
     return params
 
 
-def pretty_str(fields: dict[str, Any], name: Optional[str] = None) -> str:
+def pretty_repr(fields: Mapping[str, Any], name: Optional[str] = None) -> str:
     name = name or ''
     format_string = name + '('
     if not fields:
@@ -73,7 +73,7 @@ def pretty_str(fields: dict[str, Any], name: Optional[str] = None) -> str:
 def pretty_obj_str(obj: Any, init: bool = False) -> str:
     fields = get_init_params(obj) if init else obj.__dict__
     name = obj.__class__.__name__
-    return pretty_str(fields, name)
+    return pretty_repr(fields, name)
 
 
 def monkey_patch_method(obj, method: Callable) -> None:

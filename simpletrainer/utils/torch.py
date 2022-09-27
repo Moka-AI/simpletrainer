@@ -9,7 +9,7 @@ import torchinfo
 from accelerate.utils.random import set_seed
 from torch.utils.data import DataLoader
 
-from simpletrainer.utils.common import pretty_str
+from simpletrainer.utils.common import pretty_repr
 
 T = TypeVar('T')
 set_seed = set_seed
@@ -23,7 +23,7 @@ class DataInfo:
     num_batches_per_epoch: Optional[int]
 
     def __repr__(self) -> str:
-        return pretty_str(asdict(self), self.__class__.__name__)
+        return pretty_repr(asdict(self), self.__class__.__name__)
 
 
 def get_batch_size_from_dataloader(dataloader: DataLoader) -> int:

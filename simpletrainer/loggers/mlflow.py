@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 
-from simpletrainer.common.types.hints import HyperParams, MetricDict
+from simpletrainer.common.types import HyperParams, MetricDict
 from simpletrainer.integrations import is_mlflow_available
-from simpletrainer.loggers.base import BaseDeepLearningLogger
+from simpletrainer.loggers.base import DeepLearningLogger
 
 if TYPE_CHECKING:
     from simpletrainer.core.trainer import Trainer
@@ -17,7 +17,7 @@ if is_mlflow_available():
     import mlflow
 
 
-class MlflowLogger(BaseDeepLearningLogger, name='mlflow'):
+class MlflowLogger(DeepLearningLogger):
     def __init__(self, tracking_uri: Optional[str] = None):
         if not is_mlflow_available():
             raise ImportError('wandb is not installed')
@@ -29,7 +29,7 @@ class MlflowLogger(BaseDeepLearningLogger, name='mlflow'):
     def with_trainer(self, trainer: 'Trainer') -> None:
         mlflow.set_experiment(trainer.experiment_name)
 
-    def log_scalars(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:
+    def log_metrics(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:
         _scalars = {k: float(v) for k, v in scalars.items()}
         mlflow.log_metrics(_scalars, step=step)
 

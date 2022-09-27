@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 
-from simpletrainer.common.types.hints import HyperParams, MetricDict
+from simpletrainer.common.types import HyperParams, MetricDict
 from simpletrainer.integrations import is_wandb_available
-from simpletrainer.loggers.base import BaseDeepLearningLogger
+from simpletrainer.loggers.base import DeepLearningLogger
 
 if TYPE_CHECKING:
     from simpletrainer.core.trainer import Trainer
@@ -15,7 +15,7 @@ if is_wandb_available():
     import wandb
 
 
-class WandbLogger(BaseDeepLearningLogger, name='wandb'):
+class WandbLogger(DeepLearningLogger):
     def __init__(self):
         if not is_wandb_available():
             raise ImportError('wandb is not installed')

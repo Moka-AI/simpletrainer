@@ -2,10 +2,11 @@ from pydantic import BaseSettings
 
 
 class SimpleTrainergDefaultSettings(BaseSettings):
-    experiment_name: str = 'experiments'
+    experiment_name: str = 'untitled_experiment'
     epochs: int = 3
     seed: int = 42
-    sign_metric: str = '-loss'
+    core_metric: str = '-loss'
+    logger: str = 'tensorboard'
     log_file_name: str = 'trainer.log'
     best_model_file_name: str = 'best_model.pt'
     best_model_state_file_name: str = 'best_model_state.pt'
@@ -21,6 +22,9 @@ class SimpleTrainergDefaultSettings(BaseSettings):
     metric_round: int = 4
     log_format: str = '[%(levelname)s] %(asctime)s %(module)s: %(message)s'
     date_format = '%Y-%m-%d %H:%M'
+
+    class Config:
+        env_prefix = 'SIMPLETRAINER_'
 
 
 DefaultSettings = SimpleTrainergDefaultSettings()

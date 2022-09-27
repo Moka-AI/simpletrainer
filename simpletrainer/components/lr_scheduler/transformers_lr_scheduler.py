@@ -37,7 +37,7 @@ class TransformersLRScheduler(BaseComponent):
         self.total_steps = total_steps
         self.max_warmup_steps = max_warmup_steps
 
-    def with_trainer(self, trainer: Trainer) -> None:
+    def prepare_with_trainer(self, trainer: Trainer) -> None:
         total_steps_from_trainer = trainer.total_steps
         if self.total_steps is None:
             if total_steps_from_trainer is None:

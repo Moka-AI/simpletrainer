@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union
 
 from simpletrainer import AttrsComponent, Trainer, after, define, field, op
-from simpletrainer.common.types import SignMetric
+from simpletrainer.common.sign_metric import SignMetric
 from simpletrainer.components.basic import MetricTracker
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class EarlyStopping(AttrsComponent):
         self.patience = patience
         self._init_sign_metric = sign_metric
 
-    def with_trainer(self, trainer: Trainer) -> None:
+    def prepare_with_trainer(self, trainer: Trainer) -> None:
         sign_metric = self._init_sign_metric or trainer.core_metric
         if isinstance(sign_metric, str):
             sign_metric = SignMetric.from_str(sign_metric)

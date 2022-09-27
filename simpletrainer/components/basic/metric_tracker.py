@@ -3,21 +3,17 @@ from typing import Optional
 from attrs.converters import optional
 
 from simpletrainer import StatefulAttrsComponent, Trainer, after, define, field
-from simpletrainer.common.types import SignMetric
+from simpletrainer.common.sign_metric import SignMetric
 
 
 @define
 class MetricTracker(StatefulAttrsComponent):
     sign_metric: SignMetric = field(default=None, converter=optional(SignMetric.from_str))
     train: bool = False
-    best_epoch: int = field(init=False, save=True)
-    best_score: Optional[float] = field(init=False, save=True)
+    best_epoch: int = field(default=0, save=True)
+    best_score: Optional[float] = field(default=None, save=True)
 
-    def __attrs_post_init__(self) -> None:
-        self.best_epoch = 0
-        self.best_score = None
-
-    def with_trainer(self, trainer: Trainer) -> None:
+    def prepare_with_trainer(self, trainer: Trainer) -> None:
         self.sign_metric = self.sign_metric or trainer.core_metric
 
     @after(Trainer.run_stage)

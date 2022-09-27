@@ -1,29 +1,27 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from abc import ABC
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 
-from simpletrainer.common.registry import DeepLearningLoggerRegistry
 from simpletrainer.common.types import HyperParams, MetricDict
 
 if TYPE_CHECKING:
     from simpletrainer.core.trainer import Trainer
 
 
-class BaseDeepLearningLogger:
-    def __init_subclass__(cls, /, name: str, **kwargs) -> None:
-        super().__init_subclass__(**kwargs)
-        DeepLearningLoggerRegistry[name] = cls
+class DeepLearningLogger(ABC):
+    name: ClassVar[str]
 
-    def with_trainer(self, trainer: 'Trainer') -> None:
+    def prepare_with_trainer(self, trainer: 'Trainer') -> None:
+        pass
+
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         raise NotImplementedError
 
-    def log_scalars(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:
-        raise NotImplementedError
-
-    def log_tensors(self, tensors: dict[str, torch.Tensor], step: Optional[int] = None) -> None:
+    def log_tensors(self, tensors: dict[str, torch.Tensor], step: int | None = None) -> None:
         raise NotImplementedError
 
     def log_summary(self, hyper_params: HyperParams, metrics: MetricDict) -> None:

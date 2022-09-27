@@ -7,20 +7,20 @@ import torch
 from torch.utils.tensorboard.summary import hparams
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from simpletrainer.common.types.hints import HyperParams, MetricDict
-from simpletrainer.loggers.base import BaseDeepLearningLogger
+from simpletrainer.common.types import HyperParams, MetricDict
+from simpletrainer.loggers.base import DeepLearningLogger
 
 if TYPE_CHECKING:
     from simpletrainer.core import Trainer
 
 
-class TensorboardLogger(BaseDeepLearningLogger, name='tensorboard'):
+class TensorboardLogger(DeepLearningLogger):
     writer: SummaryWriter
 
-    def with_trainer(self, trainer: 'Trainer') -> None:
+    def prepare_with_trainer(self, trainer: 'Trainer') -> None:
         self.writer = SummaryWriter(str(trainer.output_dir))
 
-    def log_scalars(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:
+    def log_metrics(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:
         for name, scalar in scalars.items():
             self.writer.add_scalar(name, scalar, step)
 

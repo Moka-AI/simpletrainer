@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from attrs import asdict, define
 
-from simpletrainer.common.types.hints import PathOrStr
+from simpletrainer.common.types import PathOrStr
 
 if TYPE_CHECKING:
     from simpletrainer.core.trainer import Trainer

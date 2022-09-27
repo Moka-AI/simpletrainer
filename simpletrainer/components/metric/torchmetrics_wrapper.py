@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional, Union
 from simpletrainer import BaseComponent, DefaultSettings, Trainer, after, on
 from simpletrainer.common.types import Batch, BatchOutput, MetricDict
 from simpletrainer.integrations import is_torchmetrics_available
-from simpletrainer.utils.common import pretty_str, smartgetter
+from simpletrainer.utils.common import pretty_repr, smartgetter
 
 if is_torchmetrics_available():
     import torchmetrics as tm
@@ -46,11 +46,11 @@ class TorchMetricsWrapper(BaseComponent):
         self.target_getter = target_getter or smartgetter(DefaultSettings.target_key)
         self.compute_intervel = compute_intervel
 
-    def with_trainer(self, trainer: Trainer) -> None:
+    def prepare_with_trainer(self, trainer: Trainer) -> None:
         if self.compute_intervel is None:
             self.compute_intervel = self.suggest_intervel(trainer.num_steps_per_epoch)
 
-    @on(Trainer.EVENT.PREPARE)
+    @on(Trainer.EVENT.START)
     def set_device(self, trainer: Trainer):
         if self.on_train:
             self.train_metric.to(trainer.device)
@@ -108,7 +108,7 @@ class TorchMetricsWrapper(BaseComponent):
             on_valid=self.on_valid,
             compute_intervel=self.compute_intervel,
         )
-        return pretty_str(fields, self.__class__.__name__)
+        return pretty_repr(fields, self.__class__.__name__)
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, self.__class__):

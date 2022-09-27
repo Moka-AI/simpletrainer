@@ -10,6 +10,8 @@ from accelerate.optimizer import AcceleratedOptimizer
 from torch.utils.data import DataLoader
 
 from simpletrainer.common.default_settings import DefaultSettings
+from simpletrainer.common.protocols import Stateful
+from simpletrainer.common.sign_metric import SignMetric
 from simpletrainer.common.types import (
     Batch,
     BatchOutput,
@@ -17,15 +19,13 @@ from simpletrainer.common.types import (
     LRScheduler,
     MetricDict,
     PathOrStr,
-    SignMetric,
-    Stateful,
 )
 from simpletrainer.core.configs import TrainerConfig
 from simpletrainer.core.hook import TrainerEvent, TrainerHookEngine, entrypoint
 from simpletrainer.core.info import TrainerInfo
 from simpletrainer.core.mixins import AcceleratorMixin, TrainerStateMixin
 from simpletrainer.core.state import TrainerState
-from simpletrainer.loggers import BaseDeepLearningLogger, TensorboardLogger
+from simpletrainer.loggers import DeepLearningLogger, DeepLearningLoggerRegistry
 from simpletrainer.utils.common import random_experiment_name, smartget
 from simpletrainer.utils.torch import get_data_info
 
@@ -49,14 +49,13 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         epochs: int = DefaultSettings.epochs,
         do_eval: bool = True,
         accumulate_grad_batches: int = 1,
-        core_metric: SignMetric = SignMetric('-', 'loss'),
+        core_metric: SignMetric = SignMetric.from_str(DefaultSettings.core_metric),
         experiment_name: str = DefaultSettings.experiment_name,
         run_name: Optional[str] = None,
         output_dir: Optional[Path] = None,
         auto_restore: bool = True,
         accelerator: Optional[Accelerator] = None,
-        logger: Optional[BaseDeepLearningLogger] = None,
-        components: Sequence['Component'] = tuple(),
+        logger: Optional[DeepLearningLogger] = None,
     ) -> None:
         self.epochs = epochs
         self.do_eval = do_eval
@@ -67,19 +66,14 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.output_dir = output_dir or (Path(self.experiment_name) / self.run_name)
         self.auto_restore = auto_restore
         self.accelerator = accelerator or Accelerator()
-        self.logger = logger or TensorboardLogger()
+        self.logger = logger or DeepLearningLoggerRegistry[DefaultSettings.logger]()
         self.components = []
         self.exports: dict[str, Any] = {}
         self.state = TrainerState()
         self.hook_engine = TrainerHookEngine(self)
 
-        for component in components:
-            self.hook_engine.add(component)
-        self.hook_engine.on(TrainerEvent.INIT)
-
     @classmethod
-    def from_config(cls, config: TrainerConfig) -> 'Trainer':
-        from simpletrainer.common.registry import DeepLearningLoggerRegistry
+    def from_config(cls, config: TrainerConfig, components: Sequence['Component'] = tuple()) -> 'Trainer':
         from simpletrainer.components import (
             RichInspect,
             RichProgressBar,
@@ -89,7 +83,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         accelerator = config.accelerator.build()
         logger = DeepLearningLoggerRegistry[config.logger]()
 
-        components = []
+        components = list(components)
         if config.inspect:
             components.append(RichInspect())
         if config.progress_bar == 'rich':
@@ -97,7 +91,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         elif config.progress_bar == 'tqdm':
             components.append(TqdmProgressBar())
 
-        return cls(
+        trainer = cls(
             accelerator=accelerator,
             logger=logger,
             epochs=config.epochs,
@@ -108,8 +102,9 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             run_name=config.run_name,
             output_dir=config.output_dir,
             auto_restore=config.auto_restore,
-            components=components,
         )
+        trainer.components.extend(components)
+        return trainer
 
     def train(
         self,
@@ -118,6 +113,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         train_dataloader: DataLoader,
         valid_dataloader: Optional[DataLoader] = None,
         lr_scheduler: Optional[LRScheduler] = None,
+        components: Sequence['Component'] = tuple(),
         checkpoint: Optional[PathOrStr] = None,
     ) -> None:
         self.model = model
@@ -125,11 +121,13 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
         self.lr_scheduler = lr_scheduler
+        self.components.extend(list(components))
 
         try:
             self.prepare()
             self.try_restore_checkpoint(checkpoint)
-            self.loop()
+            self.hook_engine.on(TrainerEvent.START)
+            self.start_loop()
             self.hook_engine.on(TrainerEvent.FINISH)
         except (Exception, KeyboardInterrupt) as e:
             self.exception = e
@@ -150,9 +148,10 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             self.valid_data_info = get_data_info(self.valid_dataloader, self.accelerator.num_processes)
 
         self.output_dir.mkdir(exist_ok=True, parents=True)
-        self.logger.with_trainer(self)
+        self.logger.prepare_with_trainer(self)
+        for component in self.components:
+            self.hook_engine.add(component)
         self.info.to_json(self.output_dir / DefaultSettings.trainer_info_json_file_name)
-        self.hook_engine.on(TrainerEvent.PREPARE)
 
     def try_restore_checkpoint(self, checkpoint: Optional[PathOrStr] = None) -> None:
         if checkpoint is not None:
@@ -174,7 +173,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.hook_engine.on(TrainerEvent.CRASH)
 
     @entrypoint
-    def loop(self) -> None:
+    def start_loop(self) -> None:
         while not self.should_stop_loop():
             self.run_epoch()
             self.advance_epoch()
@@ -199,11 +198,11 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         tn = self.run_train_stage.__name__
         vn = self.run_valid_stage.__name__
 
-        if tn not in self.state.checkpoint_entrypoint_stack and vn not in self.state.checkpoint_entrypoint_stack:
-            self.state.checkpoint_entrypoint_stack = []
+        if tn not in self.state._checkpoint_entrypoint_stack and vn not in self.state._checkpoint_entrypoint_stack:
+            self.state._checkpoint_entrypoint_stack = []
             return
 
-        if tn in self.state.checkpoint_entrypoint_stack:
+        if tn in self.state._checkpoint_entrypoint_stack:
             self.prepare_for_stage(train=True)
             self.run_stage(train=True)
 
@@ -371,26 +370,40 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         scalars = {k: v for k, v in data.items() if isinstance(v, (int, float))}
         if scalars:
             scalars = self.logger.add_prefix(prefix, scalars)
-            self.logger.log_scalars(scalars, step=step)
+            self.logger.log_metrics(scalars, step=step)
 
         tensors = {k: v for k, v in data.items() if isinstance(v, torch.Tensor)}
         if tensors:
             tensors = self.logger.add_prefix(prefix, tensors)
             self.logger.log_tensors(tensors, step=step)
 
-    def save(self, checkpoint_name: str):
-        save_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name
+    def save(self, checkpoint_name_or_dir: PathOrStr) -> None:
+        if isinstance(checkpoint_name_or_dir, Path):
+            if checkpoint_name_or_dir.is_dir():
+                save_dir = checkpoint_name_or_dir
+            else:
+                raise ValueError(f'checkpoint_name_or_dir must be a directory, got {checkpoint_name_or_dir}')
+        else:
+            save_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name_or_dir
+
         if self.is_main_process:
             save_dir.mkdir(parents=True, exist_ok=True)
             self.state.to_json(save_dir / DefaultSettings.trainer_state_json_file_name)
         self.accelerator.wait_for_everyone()
         self.accelerator.save_state(str(save_dir))
 
-    def load(self, checkpoint_dir: PathOrStr):
-        checkpoint_dir = Path(checkpoint_dir)
-        self.accelerator.load_state(str(checkpoint_dir))
-        self.state = self.state.from_json(checkpoint_dir / DefaultSettings.trainer_state_json_file_name)
-        self.state.checkpoint_entrypoint_stack = self.state.entrypoint_stack
+    def load(self, checkpoint_name_or_dir: PathOrStr) -> None:
+        if isinstance(checkpoint_name_or_dir, Path):
+            if checkpoint_name_or_dir.is_dir():
+                load_dir = checkpoint_name_or_dir
+            else:
+                raise ValueError(f'checkpoint_name_or_dir must be a directory, got {checkpoint_name_or_dir}')
+        else:
+            load_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name_or_dir
+
+        self.accelerator.load_state(str(load_dir))
+        self.state = self.state.from_json(load_dir / DefaultSettings.trainer_state_json_file_name)
+        self.state._checkpoint_entrypoint_stack = self.state.entrypoint_stack
         self.state.entrypoint_stack = []
         self.accelerator.wait_for_everyone()
 

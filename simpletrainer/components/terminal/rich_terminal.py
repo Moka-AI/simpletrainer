@@ -32,7 +32,7 @@ import simpletrainer.utils.torch as torch_utils
 from simpletrainer import BaseComponent, Trainer, after, before, on
 from simpletrainer.common.types import MetricDict
 from simpletrainer.core.hook import HookCollection, Preposition, TrainerEvent
-from simpletrainer.utils.common import pretty_str
+from simpletrainer.utils.common import pretty_repr
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -131,12 +131,14 @@ class RichProgressBar(BaseComponent):
         )
         return task_id
 
-    @on(Trainer.EVENT.PREPARE)
-    def fit_progress(self, trainer: Trainer):
+    def prepare_with_trainer(self, trainer: Trainer) -> None:
         self.train_task_id = self.add_task('train', trainer.train_data_info.num_batches_per_epoch)
         if trainer.do_eval:
             self.valid_task_id = self.add_task('valid', trainer.valid_data_info.num_batches_per_epoch)  # type: ignore
         self._prepare_rich_handler()
+
+    @on(Trainer.EVENT.START)
+    def fit_progress(self, trainer: Trainer):
         self._live.start()
         self._live.update(self.rich_live_obj)
 
@@ -238,7 +240,7 @@ class RichInspect(BaseComponent):
     def __init__(self, model_summary_depth: int = 3):
         self.model_summary_depth = model_summary_depth
 
-    @on(Trainer.EVENT.PREPARE)
+    @on(Trainer.EVENT.START)
     def show_trainer_info(self, trainer: Trainer):
         named_panels = [
             (
@@ -434,7 +436,7 @@ class RichInspect(BaseComponent):
 
     @staticmethod
     def get_hyper_params_panel(hyper_params):
-        return [Align.center(Panel(pretty_str(hyper_params, name='HyperParams')), width=100)]
+        return [Align.center(Panel(pretty_repr(hyper_params, name='HyperParams')), width=100)]
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'

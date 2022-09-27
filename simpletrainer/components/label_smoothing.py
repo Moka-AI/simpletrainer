@@ -23,7 +23,7 @@ class LabelSmoothing(AttrsComponent):
     rate: float = field(default=0.1, hyper_param=True)
     cross_entropy_getter: CrossEntropyGetter = auto_find_cross_entropy
 
-    @on(Trainer.EVENT.PREPARE)
+    @on(Trainer.EVENT.START)
     def set_label_smoothing(self, trainer: Trainer):
         try:
             loss_instance = self.cross_entropy_getter(trainer)

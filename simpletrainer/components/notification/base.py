@@ -9,7 +9,7 @@ from simpletrainer.components.notification.common import (
 
 
 class BaseNotification(BaseComponent):
-    @on(Trainer.EVENT.PREPARE)
+    @on(Trainer.EVENT.START)
     def send_start_info(self, trainer: Trainer) -> None:
         self.send(start_info(trainer))
 

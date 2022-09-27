@@ -16,6 +16,7 @@ from typing import (
     Union,
     runtime_checkable,
 )
+from warnings import warn
 
 from simpletrainer.common.oprator import Opration
 from simpletrainer.core.component import BaseComponent
@@ -39,8 +40,7 @@ class Preposition(str, Enum):
 
 
 class TrainerEvent(str, Enum):
-    INIT = 'INIT'
-    PREPARE = 'PREPARE'
+    START = 'START'
     CRASH = 'CRASH'
     FINISH = 'FINISH'
     TEARDOWN = 'TEARDOWN'
@@ -122,11 +122,12 @@ class TrainerHookEngine:
         return trainer_hooks
 
     def add(self, component: BaseComponent) -> None:
-        component.with_trainer(self.trainer)
+        component.prepare_with_trainer(self.trainer)
 
         for other_component in self.trainer.components:
             if component == other_component:
-                raise ValueError(f'Component {component} already exists in collection')
+                warn(f'{component} already exists')
+                return
 
         for other_component in self.trainer.components:
             component.check_compatibility(other_component)
@@ -135,7 +136,7 @@ class TrainerHookEngine:
             self._add(component)
 
     def setdefault(self, component: CT) -> CT:
-        component.with_trainer(self.trainer)
+        component.prepare_with_trainer(self.trainer)
 
         for other_component in self.trainer.components:
             if component == other_component:

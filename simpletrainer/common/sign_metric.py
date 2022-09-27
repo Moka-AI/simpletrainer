@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
 
-Sign = Literal['+', '-']
-
 
 @dataclass
 class SignMetric:
-    sign: Sign
+    sign: Literal['+', '-']
     name: str
 
     @classmethod

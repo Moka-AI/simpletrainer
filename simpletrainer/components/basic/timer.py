@@ -14,7 +14,7 @@ class Timer(AttrsComponent):
     start_time: datetime = field(init=False, export=True)
     end_time: datetime = field(init=False, export=True)
 
-    @on(Trainer.EVENT.PREPARE, try_first=True)
+    @on(Trainer.EVENT.START, try_first=True)
     def start(self, trainer: Trainer):
         self.start_time = datetime.now()
 

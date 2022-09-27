@@ -6,8 +6,8 @@ from accelerate.utils import DistributedDataParallelKwargs, PrecisionType
 from pydantic import BaseModel, Field, validator
 
 from simpletrainer.common.default_settings import DefaultSettings
-from simpletrainer.common.types.sign_metric import SignMetric
-from simpletrainer.utils.common import pretty_str, random_experiment_name
+from simpletrainer.common.sign_metric import SignMetric
+from simpletrainer.utils.common import pretty_repr, random_experiment_name
 
 
 class AcceleratorConfig(BaseModel):
@@ -20,10 +20,7 @@ class AcceleratorConfig(BaseModel):
         if self.ddp_kwargs:
             args.append(DistributedDataParallelKwargs(**self.ddp_kwargs))
 
-        if self.mixed_precision is None:
-            _mixed_precision = PrecisionType.NO
-        else:
-            _mixed_precision = self.mixed_precision
+        _mixed_precision = self.mixed_precision
 
         accelerator = Accelerator(
             mixed_precision=_mixed_precision,
@@ -56,4 +53,4 @@ class TrainerConfig(BaseModel):
         raise ValueError(f'Invalid core_metric: {v}')
 
     def __repr__(self) -> str:
-        return pretty_str(self.dict(), self.__class__.__name__)
+        return pretty_repr(self.dict(), self.__class__.__name__)

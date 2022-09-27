@@ -6,7 +6,7 @@ from simpletrainer import BaseComponent, Trainer, after
 class TryOverfit(BaseComponent):
     only_main_process = False
 
-    def with_trainer(self, trainer: Trainer):
+    def prepare_with_trainer(self, trainer: Trainer):
         self.batch = next(iter(trainer.train_dataloader))
 
     @after(Trainer.generate_batch, try_first=True)

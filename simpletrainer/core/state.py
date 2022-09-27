@@ -40,11 +40,11 @@ class TrainerState:
     batch_output: Any = field(init=False)
 
     # For Restore
-    checkpoint_entrypoint_stack: list[str] = field(factory=list)
+    _checkpoint_entrypoint_stack: list[str] = field(factory=list)
 
     @property
     def should_restore(self) -> bool:
-        return bool(self.checkpoint_entrypoint_stack)
+        return bool(self._checkpoint_entrypoint_stack)
 
     def set_loss(self, loss: torch.Tensor, accumulate_grad_batches: int) -> None:
         self.loss = loss / accumulate_grad_batches
@@ -63,7 +63,7 @@ class TrainerState:
             self.batch_iterator = islice(batch_iterator, self.num_batches, None)
         else:
             self.batch_iterator = batch_iterator
-        self.checkpoint_entrypoint_stack = []
+        self._checkpoint_entrypoint_stack = []
 
     def reset_stage_state(self):
         self.num_steps = 0
