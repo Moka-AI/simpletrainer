@@ -131,14 +131,12 @@ class RichProgressBar(BaseComponent):
         )
         return task_id
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    @on(Trainer.EVENT.START)
+    def fit_progress(self, trainer: Trainer):
         self.train_task_id = self.add_task('train', trainer.train_data_info.num_batches_per_epoch)
         if trainer.do_eval:
             self.valid_task_id = self.add_task('valid', trainer.valid_data_info.num_batches_per_epoch)  # type: ignore
         self._prepare_rich_handler()
-
-    @on(Trainer.EVENT.START)
-    def fit_progress(self, trainer: Trainer):
         self._live.start()
         self._live.update(self.rich_live_obj)
 

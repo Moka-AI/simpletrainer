@@ -198,11 +198,11 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         tn = self.run_train_stage.__name__
         vn = self.run_valid_stage.__name__
 
-        if tn not in self.state._checkpoint_entrypoint_stack and vn not in self.state._checkpoint_entrypoint_stack:
-            self.state._checkpoint_entrypoint_stack = []
+        if tn not in self.state.checkpoint_entrypoint_stack and vn not in self.state.checkpoint_entrypoint_stack:
+            self.state.checkpoint_entrypoint_stack = []
             return
 
-        if tn in self.state._checkpoint_entrypoint_stack:
+        if tn in self.state.checkpoint_entrypoint_stack:
             self.prepare_for_stage(train=True)
             self.run_stage(train=True)
 
@@ -403,7 +403,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
 
         self.accelerator.load_state(str(load_dir))
         self.state = self.state.from_json(load_dir / DefaultSettings.trainer_state_json_file_name)
-        self.state._checkpoint_entrypoint_stack = self.state.entrypoint_stack
+        self.state.checkpoint_entrypoint_stack = self.state.entrypoint_stack
         self.state.entrypoint_stack = []
         self.accelerator.wait_for_everyone()
 
