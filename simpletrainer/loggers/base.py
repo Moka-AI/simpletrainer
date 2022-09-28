@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class DeepLearningLogger(ABC):
     name: ClassVar[str]
 
-    def prepare_with_trainer(self, trainer: 'Trainer') -> None:
+    def post_init(self, trainer: 'Trainer') -> None:
         pass
 
     def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:

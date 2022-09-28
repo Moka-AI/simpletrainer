@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, validator
 
 from simpletrainer.common.default_settings import DefaultSettings
 from simpletrainer.common.sign_metric import SignMetric
+from simpletrainer.common.types import PathOrStr
 from simpletrainer.utils.common import pretty_repr, random_experiment_name
 
 
@@ -38,6 +39,7 @@ class TrainerConfig(BaseModel):
     experiment_name: str = DefaultSettings.experiment_name
     run_name: str = Field(default_factory=lambda: random_experiment_name())
     output_dir: Optional[Path] = None
+    checkpoint_for_restore: Optional[PathOrStr] = None
     auto_restore: bool = True
     inspect: bool = False
     progress_bar: Literal['rich', 'tqdm'] = 'rich'

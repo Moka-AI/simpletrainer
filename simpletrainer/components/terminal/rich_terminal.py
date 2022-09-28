@@ -265,7 +265,7 @@ class RichInspect(BaseComponent):
             ),
             (
                 'Trainer Components',
-                self.get_components_panel(trainer.components),
+                self.get_components_panel(trainer._components),
             ),
         ]
         for name, panels in named_panels:

@@ -9,7 +9,7 @@ class FileHandler(AttrsComponent):
     log_file_name: str = DefaultSettings.log_file_name
     level: int = logging.INFO
 
-    def prepare_with_trainer(self, trainer: Trainer):
+    def post_init_with_trainer(self, trainer: Trainer):
         log_file = trainer.output_dir / self.log_file_name
         self.file_handler = logging.FileHandler(str(log_file))
         self.file_handler.setLevel(self.level)

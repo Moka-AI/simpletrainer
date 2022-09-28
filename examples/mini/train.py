@@ -5,9 +5,10 @@ from mini.model import MiniModel
 from pydantic import BaseModel
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torchmetrics import MeanAbsoluteError
 
 from simpletrainer import DefaultSettings, Trainer, TrainerConfig
-from simpletrainer.components import MetricTracker, SaveCheckpoint
+from simpletrainer.components import MetricTracker, SaveCheckpoint, TorchMetricsWrapper
 from simpletrainer.utils.torch import set_seed
 
 logging.basicConfig(level=logging.INFO, format=DefaultSettings.log_format)
@@ -40,8 +41,12 @@ def main(cfg: MiniExperimentConfig):
 
     # SimpleTrainer
     trainer = Trainer.from_config(cfg.trainer)
-    trainer.hook_engine.add(SaveCheckpoint())
-    trainer.hook_engine.add(MetricTracker())
+    components = [
+        TorchMetricsWrapper(MeanAbsoluteError(), pred_getter=lambda batch_output: batch_output.predictions, target_getter=lambda batch: batch['y']),  # type: ignore
+        SaveCheckpoint(),
+        MetricTracker(),
+    ]
+    trainer.register_components(components)
 
     trainer.train(
         model,
@@ -56,7 +61,7 @@ if __name__ == '__main__':
     trainer_config = TrainerConfig()
     trainer_config.experiment_name = 'simpletrainer-mini'
     trainer_config.run_name = 'test-restore'
-    trainer_config.inspect = False
+    trainer_config.inspect = True
     trainer_config.progress_bar = 'rich'
 
     cfg = MiniExperimentConfig(

@@ -13,7 +13,7 @@ class MetricTracker(StatefulAttrsComponent):
     best_epoch: int = field(default=0, save=True)
     best_score: Optional[float] = field(default=None, save=True)
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         self.sign_metric = self.sign_metric or trainer.core_metric
 
     @after(Trainer.run_stage)

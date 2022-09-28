@@ -97,7 +97,6 @@ class TrainerHookEngine:
         # Map: EntryPoint -> HookCollection
         self.entrypoint_hooks: dict[str, HookCollection] = defaultdict(lambda: HookCollection())
         self.trainer = trainer
-        self.entrypoint_stack = []
 
     def _register(self, component: BaseComponent) -> None:
         hooks = self.inspect_trainer_hook(component)
@@ -109,7 +108,7 @@ class TrainerHookEngine:
 
     def _add(self, component: BaseComponent) -> None:
         logger.debug(f'Add component {component.__class__.__name__}')
-        self.trainer.components.append(component)
+        self.trainer._components.append(component)
         self.refresh()
 
     @staticmethod
@@ -121,28 +120,26 @@ class TrainerHookEngine:
                 trainer_hooks.append(member)
         return trainer_hooks
 
-    def add(self, component: BaseComponent) -> None:
-        component.prepare_with_trainer(self.trainer)
-
-        for other_component in self.trainer.components:
+    def register(self, component: BaseComponent) -> None:
+        for other_component in self.trainer._components:
             if component == other_component:
                 warn(f'{component} already exists')
                 return
 
-        for other_component in self.trainer.components:
+        for other_component in self.trainer._components:
             component.check_compatibility(other_component)
 
         if self.trainer.is_main_process or (not component.only_main_process):
             self._add(component)
 
     def setdefault(self, component: CT) -> CT:
-        component.prepare_with_trainer(self.trainer)
+        component.post_init_with_trainer(self.trainer)
 
-        for other_component in self.trainer.components:
+        for other_component in self.trainer._components:
             if component == other_component:
                 return other_component  # type: ignore
 
-        for other_component in self.trainer.components:
+        for other_component in self.trainer._components:
             component.check_compatibility(other_component)
 
         if self.trainer.is_main_process or (not component.only_main_process):
@@ -151,12 +148,12 @@ class TrainerHookEngine:
         return component
 
     def pop(self, component: CT) -> CT:
-        output_component = self.trainer.components.pop(self.trainer.components.index(component))
+        output_component = self.trainer._components.pop(self.trainer._components.index(component))
         self.refresh()
         return output_component  # type: ignore
 
     def find(self, component_class: Type[CT], **attrs) -> Optional[CT]:
-        for component in self.trainer.components:
+        for component in self.trainer._components:
             if not isinstance(component, component_class):
                 continue
 
@@ -165,7 +162,7 @@ class TrainerHookEngine:
 
     def refresh(self) -> None:
         self.entrypoint_hooks = defaultdict(lambda: HookCollection())
-        for component in self.trainer.components:
+        for component in self.trainer._components:
             self._register(component)
 
     def after(self, entrypoint: EntryPoint, raw_return: T) -> T:

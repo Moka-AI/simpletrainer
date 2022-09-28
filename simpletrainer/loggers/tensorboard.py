@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class TensorboardLogger(DeepLearningLogger):
     writer: SummaryWriter
 
-    def prepare_with_trainer(self, trainer: 'Trainer') -> None:
+    def post_init(self, trainer: 'Trainer') -> None:
         self.writer = SummaryWriter(str(trainer.output_dir))
 
     def log_metrics(self, scalars: dict[str, Union[int, float]], step: Optional[int] = None) -> None:

@@ -46,7 +46,7 @@ class TorchMetricsWrapper(BaseComponent):
         self.target_getter = target_getter or smartgetter(DefaultSettings.target_key)
         self.compute_intervel = compute_intervel
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         if self.compute_intervel is None:
             self.compute_intervel = self.suggest_intervel(trainer.num_steps_per_epoch)
 

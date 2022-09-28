@@ -9,3 +9,6 @@ class SaveCheckpoint(BaseComponent):
     @after(Trainer.run_epoch)
     def save_checkpoint(self, trainer: Trainer) -> None:
         trainer.save(f'epoch-{trainer.current_epoch}')
+
+    def __repr__(self) -> str:
+        return 'SaveCheckpoint()'

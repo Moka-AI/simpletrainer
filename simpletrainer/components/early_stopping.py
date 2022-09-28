@@ -26,7 +26,7 @@ class EarlyStopping(AttrsComponent):
         self.patience = patience
         self._init_sign_metric = sign_metric
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         sign_metric = self._init_sign_metric or trainer.core_metric
         if isinstance(sign_metric, str):
             sign_metric = SignMetric.from_str(sign_metric)

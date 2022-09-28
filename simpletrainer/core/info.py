@@ -86,7 +86,7 @@ class TrainerInfo:
             init_attributes=init_attributes,
             accelerator=acclerator,
             logger=trainer.logger.__class__.__name__,
-            components=[i.__class__.__name__ for i in trainer.components],
+            components=[i.__class__.__name__ for i in trainer._components],
             hyper_params=trainer.hyper_params,
             train_metrics=trainer.state.train_metrics_history,
             valid_metrics=trainer.state.valid_metrics_history,

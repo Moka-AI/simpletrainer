@@ -25,7 +25,7 @@ class ModelWatcher(AttrsComponent):
     watch_output_dir: bool = False
     metric_tracker: MetricTracker = field(init=False)
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         self.metric_tracker = trainer.hook_engine.setdefault(MetricTracker(trainer.core_metric))
         self.interval = self.interval or self._suggest_intervel(trainer.num_steps_per_epoch)
 

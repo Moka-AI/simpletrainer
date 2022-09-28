@@ -14,7 +14,7 @@ class BestModelStateTracker(AttrsComponent):
     best_model_state: Mapping[str, torch.Tensor] = field(init=False, export=True)
     metric_tracker: MetricTracker = field(init=False)
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         self.sign_metric = self.sign_metric or trainer.core_metric
         self.metric_tracker = trainer.hook_engine.setdefault(MetricTracker(sign_metric=self.sign_metric))
 

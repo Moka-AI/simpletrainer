@@ -25,7 +25,7 @@ class BaseComponent:
     def check_compatibility(self, other_component: BaseComponent) -> Optional[NoReturn]:
         return
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         return
 
 

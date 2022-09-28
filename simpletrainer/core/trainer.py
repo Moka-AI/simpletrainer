@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional, Union
 
 import torch
 from accelerate import Accelerator
@@ -32,7 +32,7 @@ from simpletrainer.utils.torch import get_data_info
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from simpletrainer.components.base import Component
+    from simpletrainer.core.component import BaseComponent
 
 
 class Trainer(TrainerStateMixin, AcceleratorMixin):
@@ -54,8 +54,10 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         run_name: Optional[str] = None,
         output_dir: Optional[Path] = None,
         auto_restore: bool = True,
+        checkpoint_for_restore: Optional[PathOrStr] = None,
         accelerator: Optional[Accelerator] = None,
         logger: Optional[DeepLearningLogger] = None,
+        components: Iterable['BaseComponent'] = tuple(),
     ) -> None:
         self.epochs = epochs
         self.do_eval = do_eval
@@ -65,15 +67,18 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.run_name = run_name or random_experiment_name()
         self.output_dir = output_dir or (Path(self.experiment_name) / self.run_name)
         self.auto_restore = auto_restore
+        self.checkpoint_for_restore = checkpoint_for_restore
         self.accelerator = accelerator or Accelerator()
         self.logger = logger or DeepLearningLoggerRegistry[DefaultSettings.logger]()
-        self.components = []
+        self._components: list['BaseComponent'] = []
         self.exports: dict[str, Any] = {}
         self.state = TrainerState()
+
         self.hook_engine = TrainerHookEngine(self)
+        self.register_components(components)
 
     @classmethod
-    def from_config(cls, config: TrainerConfig, components: Sequence['Component'] = tuple()) -> 'Trainer':
+    def from_config(cls, config: TrainerConfig) -> 'Trainer':
         from simpletrainer.components import (
             RichInspect,
             RichProgressBar,
@@ -83,7 +88,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         accelerator = config.accelerator.build()
         logger = DeepLearningLoggerRegistry[config.logger]()
 
-        components = list(components)
+        components = []
         if config.inspect:
             components.append(RichInspect())
         if config.progress_bar == 'rich':
@@ -91,7 +96,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         elif config.progress_bar == 'tqdm':
             components.append(TqdmProgressBar())
 
-        trainer = cls(
+        return cls(
             accelerator=accelerator,
             logger=logger,
             epochs=config.epochs,
@@ -102,9 +107,9 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             run_name=config.run_name,
             output_dir=config.output_dir,
             auto_restore=config.auto_restore,
+            checkpoint_for_restore=config.checkpoint_for_restore,
+            components=components,
         )
-        trainer.components.extend(components)
-        return trainer
 
     def train(
         self,
@@ -113,19 +118,17 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         train_dataloader: DataLoader,
         valid_dataloader: Optional[DataLoader] = None,
         lr_scheduler: Optional[LRScheduler] = None,
-        components: Sequence['Component'] = tuple(),
-        checkpoint: Optional[PathOrStr] = None,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
         self.lr_scheduler = lr_scheduler
-        self.components.extend(list(components))
+
+        self.prepare()
+        self.try_restore_checkpoint(self.checkpoint_for_restore)
 
         try:
-            self.prepare()
-            self.try_restore_checkpoint(checkpoint)
             self.hook_engine.on(TrainerEvent.START)
             self.start_loop()
             self.hook_engine.on(TrainerEvent.FINISH)
@@ -148,9 +151,9 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             self.valid_data_info = get_data_info(self.valid_dataloader, self.accelerator.num_processes)
 
         self.output_dir.mkdir(exist_ok=True, parents=True)
-        self.logger.prepare_with_trainer(self)
-        for component in self.components:
-            self.hook_engine.add(component)
+        self.logger.post_init(self)
+        for component in self._components:
+            component.post_init_with_trainer(self)
         self.info.to_json(self.output_dir / DefaultSettings.trainer_info_json_file_name)
 
     def try_restore_checkpoint(self, checkpoint: Optional[PathOrStr] = None) -> None:
@@ -317,13 +320,17 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         self.optimizer.zero_grad()
 
     @property
+    def components(self):
+        return self._components
+
+    @property
     def hyper_params(self) -> HyperParams:
         hyper_params: HyperParams = {
             'epochs': self.epochs,
             'mixed_precision': self.mixed_precision,
             'accumulate_grad_batches': self.accumulate_grad_batches,
         }
-        for component in self.components:
+        for component in self._components:
             hyper_params.update(**component.hyper_params)
         return hyper_params
 
@@ -357,6 +364,10 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
     @property
     def info(self) -> TrainerInfo:
         return TrainerInfo.from_trainer(self)
+
+    def register_components(self, components: Iterable['BaseComponent']) -> None:
+        for component in components:
+            self.hook_engine.register(component)
 
     def log(
         self, data: Mapping[str, Union[float, torch.Tensor]], step: Optional[int] = None, prefix: Optional[str] = None
@@ -413,7 +424,7 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         )  # type: ignore
         if self.valid_dataloader is not None:
             self.valid_dataloader = self.accelerator.prepare(self.valid_dataloader)  # type: ignore
-        for component in self.components:
+        for component in self._components:
             if isinstance(component, Stateful):
                 self.accelerator.register_for_checkpointing(component)
 

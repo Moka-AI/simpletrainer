@@ -27,7 +27,7 @@ class SaveBestModel(AttrsComponent):
         if (not self.save_state_dict) and (not self.save_model):
             raise ValueError('Either save_state_dict or save_model should be True')
 
-    def prepare_with_trainer(self, trainer: Trainer) -> None:
+    def post_init_with_trainer(self, trainer: Trainer) -> None:
         self.sign_metric = self.sign_metric or trainer.core_metric
         self.best_model_tracker = trainer.hook_engine.setdefault(BestModelStateTracker(sign_metric=self.sign_metric))
 
