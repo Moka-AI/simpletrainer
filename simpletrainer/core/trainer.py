@@ -389,19 +389,17 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
             self.logger.log_tensors(tensors, step=step)
 
     def save(self, checkpoint_name_or_dir: PathOrStr) -> None:
-        if isinstance(checkpoint_name_or_dir, Path):
+        is_checkpoint_name = isinstance(checkpoint_name_or_dir, str)
+        if is_checkpoint_name:
+            save_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name_or_dir
+        else:
             if checkpoint_name_or_dir.is_dir():
                 save_dir = checkpoint_name_or_dir
             else:
                 raise ValueError(f'checkpoint_name_or_dir must be a directory, got {checkpoint_name_or_dir}')
-        else:
-            save_dir = self.output_dir / DefaultSettings.checkpoints_root_dir_name / checkpoint_name_or_dir
 
-        if self.is_main_process:
-            save_dir.mkdir(parents=True, exist_ok=True)
-            self.state.to_json(save_dir / DefaultSettings.trainer_state_json_file_name)
-        self.accelerator.wait_for_everyone()
         self.accelerator.save_state(str(save_dir))
+        self.state.to_json(save_dir / DefaultSettings.trainer_state_json_file_name)
 
     def load(self, checkpoint_name_or_dir: PathOrStr) -> None:
         if isinstance(checkpoint_name_or_dir, Path):
