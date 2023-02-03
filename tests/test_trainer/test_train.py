@@ -32,6 +32,7 @@ def test_train(tmpdir, batch_size, epochs, accumulate_grad_batches):
         experiment_name='for_test',
         accumulate_grad_batches=accumulate_grad_batches,
         output_dir=tmpdir,
+        progress_bar=None,
     )
     config.accelerator.cpu = True
     trainer = Trainer.from_config(config)

@@ -86,7 +86,10 @@ class Trainer(TrainerStateMixin, AcceleratorMixin):
         )
 
         accelerator = config.accelerator.build()
-        logger = DeepLearningLoggerRegistry[config.logger]()
+        if config.logger:
+            logger = DeepLearningLoggerRegistry[config.logger]()
+        else:
+            logger = None
 
         components = []
         if config.inspect:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional, Union
 
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs, PrecisionType
@@ -42,9 +42,9 @@ class TrainerConfig(BaseModel):
     checkpoint_for_restore: Optional[PathOrStr] = None
     auto_restore: bool = True
     inspect: bool = False
-    progress_bar: Literal['rich', 'tqdm'] = 'rich'
+    progress_bar: Union[str, None] = 'rich'
     accelerator: AcceleratorConfig = Field(default_factory=AcceleratorConfig)
-    logger: str = 'tensorboard'
+    logger: Union[str, None] = None
 
     @validator('core_metric')
     def convert_string_to_sign_metric(cls, v):

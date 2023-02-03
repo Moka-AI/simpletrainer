@@ -6,7 +6,7 @@ class SimpleTrainergDefaultSettings(BaseSettings):
     epochs: int = 3
     seed: int = 42
     core_metric: str = '-loss'
-    logger: str = 'tensorboard'
+    logger: str = 'dummy'
     log_file_name: str = 'trainer.log'
     best_model_file_name: str = 'best_model.pt'
     best_model_state_file_name: str = 'best_model_state.pt'
