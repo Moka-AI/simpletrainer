@@ -65,7 +65,7 @@ class TorchMetricsWrapper(BaseComponent):
     @after(Trainer.run_valid_batch)
     def update_valid_metrics(self, trainer: Trainer):
         if self.on_valid:
-            self._update(trainer, self.train_metric)
+            self._update(trainer, self.valid_metric)
 
     def _update(self, trainer: Trainer, metric: 'TorchMetric'):
         batch = trainer.state.batch
