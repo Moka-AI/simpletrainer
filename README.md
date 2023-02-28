@@ -1,3 +1,3 @@
 # SimpleTrainer
 
-Simple PyTorch Trianer
+Simple PyTorch Trainer
