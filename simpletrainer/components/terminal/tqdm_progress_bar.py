@@ -40,7 +40,7 @@ class TqdmProgressBar(BaseComponent):
 
     @staticmethod
     def get_trainer_description(trainer: Trainer) -> str:
-        stage_name = 'Trian' if trainer.in_train_stage else 'Valid'
+        stage_name = 'Train' if trainer.in_train_stage else 'Valid'
         description = f'Epoch {trainer.current_epoch}/{trainer.epochs} | {stage_name}'
         return description
 
