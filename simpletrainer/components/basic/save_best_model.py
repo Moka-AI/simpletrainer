@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import torch
+from attrs.converters import optional
 
 from simpletrainer import AttrsComponent, DefaultSettings, Trainer, define, field, on
 from simpletrainer.common.sign_metric import SignMetric
@@ -18,7 +19,7 @@ def torch_save(obj: Any, path: Path) -> None:
 
 @define(only_main_process=True)
 class SaveBestModel(AttrsComponent):
-    sign_metric: SignMetric = field(default=None, converter=SignMetric.from_str)
+    sign_metric: SignMetric = field(default=None, converter=optional(SignMetric.from_str))
     save_state_dict: bool = True
     save_model: bool = False
     save_function: SaveFunction = field(default=torch_save)
