@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "simpletrainer"
-version = "0.3.2.post1"
+version = "0.3.2.post2"
 description = "Simple PyTorch Trainer"
 license = "Apache-2.0"
 authors = ["wangyuxin <wangyuxin@mokahr.com>"]
